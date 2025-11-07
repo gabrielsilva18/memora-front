@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Memora - Agenda Falante</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <!-- Header com logo -->
+        <header class="header">
+            <div class="logo-container">
+                <div class="logo">
+                    <span class="logo-text">mem</span>
+                    <span class="logo-ear">👂</span>
+                    <span class="logo-text">ra</span>
+                    <span class="speech-bubble">💬</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Área principal de interação -->
+        <main class="main-content">
+            <!-- Status do microfone -->
+            <div class="status-container">
+                <div id="status-indicator" class="status-indicator">
+                    <span class="status-text"></span>
+                </div>
+            </div>
+
+            <!-- Botões principais -->
+            <div class="buttons-container">
+                <!-- Botão principal de gravação -->
+                <button class="action-button main-record-button" id="recordButton" aria-label="Gravar lembrete">
+                    <span class="button-icon">🎤</span>
+                </button>
+            </div>
+        </main>
+
+        <!-- Área de feedback visual (minimalista) -->
+        <div class="feedback-container" id="feedbackContainer">
+            <div class="feedback-text" id="feedbackText"></div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="script.js"></script>
+</body>
+</html>
