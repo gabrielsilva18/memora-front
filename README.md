@@ -127,6 +127,55 @@ formData.append('timestamp', new Date().toISOString());
 5. **Aguardar processamento**: O sistema enviará o áudio para o backend
 6. **Receber feedback**: Confirmação sonora do sucesso e orientações para próximos passos
 
+## ⚠️ Solução de Problemas
+
+### Problema: Permissão do Microfone Continua Sendo Solicitada
+
+Se o sistema continua pedindo permissão do microfone mesmo após você permitir, isso geralmente acontece por:
+
+#### 1. **Problema de HTTPS/HTTP**
+Alguns navegadores modernos (especialmente Chrome e Edge) exigem HTTPS para acesso ao microfone, exceto quando rodando em `localhost` ou `127.0.0.1`.
+
+**Soluções:**
+- **Usar Live Server em localhost**: O Live Server geralmente já roda em `localhost`, o que deve funcionar
+- **Configurar HTTPS local**: Use ferramentas como `mkcert` ou `ngrok` para criar um servidor HTTPS local
+- **Usar extensão do navegador**: Algumas extensões permitem forçar HTTPS local
+
+#### 2. **Permissões do Navegador Bloqueadas**
+Se você negou a permissão anteriormente, o navegador pode estar bloqueando.
+
+**Como resolver:**
+- **Chrome/Edge**: 
+  1. Clique no ícone de cadeado/câmera na barra de endereço
+  2. Vá em "Configurações do site"
+  3. Altere "Microfone" para "Permitir"
+  4. Recarregue a página
+
+- **Firefox**:
+  1. Clique no ícone de cadeado na barra de endereço
+  2. Clique em "Mais informações"
+  3. Na aba "Permissões", altere "Usar o microfone" para "Permitir"
+  4. Recarregue a página
+
+- **Safari**:
+  1. Vá em Safari > Preferências > Websites
+  2. Selecione "Microfone" no menu lateral
+  3. Altere a permissão para o site
+
+#### 3. **Múltiplas Chamadas de Permissão**
+O código foi atualizado para evitar múltiplas solicitações. Se ainda ocorrer:
+- Recarregue a página completamente (Ctrl+F5 ou Cmd+Shift+R)
+- Limpe o cache do navegador
+- Feche e reabra o navegador
+
+#### 4. **Microfone Não Detectado**
+- Verifique se há um microfone conectado
+- Teste o microfone em outro aplicativo
+- Verifique as configurações do sistema operacional
+
+### Verificação de Protocolo
+O sistema agora verifica automaticamente se está rodando em HTTPS ou localhost. Se você ver um aviso no console sobre HTTP, considere usar HTTPS ou garantir que está acessando via `localhost`.
+
 ## 🔒 Segurança e Privacidade
 
 - **Permissões**: Solicita apenas acesso ao microfone

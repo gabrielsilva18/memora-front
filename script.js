@@ -38,6 +38,8 @@ let currentDeleteData = {}; // Dados para fluxo de exclusão
 let recordingStartTime = null; // Timestamp de quando a gravação começou
 let lastProcessedText = null; // Último texto processado para evitar reprocessamento
 let lastProcessedState = null; // Último estado em que processamos texto
+let microphonePermissionGranted = false; // Rastrear se a permissão já foi concedida
+let microphonePermissionChecked = false; // Rastrear se já verificamos a permissão
 
 // Sistema de fila de áudios para evitar sobreposição
 let audioQueue = [];
@@ -142,7 +144,7 @@ async function initializeApp() {
 
     await preloadImportantAudios();
     setupEventListeners();
-    checkMicrophonePermission();
+    // Não verificar permissão aqui novamente - já foi verificado no DOMContentLoaded
 
     // Configurar desbloqueio de áudio no primeiro clique
     setupAudioUnlockOnce();
@@ -209,13 +211,69 @@ function setupEventListeners() {
 
 // Verificar permissão do microfone
 async function checkMicrophonePermission() {
+    // Evitar verificar múltiplas vezes
+    if (microphonePermissionChecked) {
+        return microphonePermissionGranted;
+    }
+    
+    microphonePermissionChecked = true;
+    
+    // Verificar se está em HTTPS (necessário para alguns navegadores)
+    const isSecure = window.location.protocol === 'https:' || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    
+    if (!isSecure) {
+        console.warn('⚠️ Aplicação rodando em HTTP. Alguns navegadores podem bloquear acesso ao microfone. Use HTTPS ou localhost.');
+    }
+    
+    // Tentar verificar permissão usando Permissions API (se disponível)
+    try {
+        if (navigator.permissions && navigator.permissions.query) {
+            const permissionStatus = await navigator.permissions.query({ name: 'microphone' });
+            
+            if (permissionStatus.state === 'granted') {
+                console.log('✅ Permissão do microfone já concedida (verificado via Permissions API)');
+                microphonePermissionGranted = true;
+                return true;
+            } else if (permissionStatus.state === 'denied') {
+                console.error('❌ Permissão do microfone negada pelo usuário');
+                microphonePermissionGranted = false;
+                await speakText('Permissão do microfone foi negada. Por favor, permita o acesso nas configurações do navegador.');
+                return false;
+            }
+            // Se for 'prompt', continuar para pedir permissão
+        }
+    } catch (e) {
+        // Permissions API pode não estar disponível em todos os navegadores
+        console.log('Permissions API não disponível, tentando acesso direto...');
+    }
+    
+    // Se não temos certeza da permissão, tentar acessar o microfone
     try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         stream.getTracks().forEach(track => track.stop());
-        console.log('Permissão do microfone concedida');
+        console.log('✅ Permissão do microfone concedida');
+        microphonePermissionGranted = true;
+        return true;
     } catch (error) {
-        console.error('Erro ao acessar microfone:', error);
-        await speakText('Erro: Permissão do microfone necessária para usar o aplicativo.');
+        console.error('❌ Erro ao acessar microfone:', error);
+        microphonePermissionGranted = false;
+        
+        let errorMessage = 'Erro ao acessar o microfone. ';
+        
+        if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
+            errorMessage += 'Permissão negada. Por favor, permita o acesso ao microfone nas configurações do navegador.';
+        } else if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError') {
+            errorMessage += 'Nenhum microfone encontrado. Verifique se há um microfone conectado.';
+        } else if (error.name === 'NotReadableError' || error.name === 'TrackStartError') {
+            errorMessage += 'O microfone está sendo usado por outro aplicativo.';
+        } else if (!isSecure) {
+            errorMessage += 'Alguns navegadores exigem HTTPS para acesso ao microfone. Tente usar localhost ou configure HTTPS.';
+        } else {
+            errorMessage += 'Por favor, verifique as configurações do navegador.';
+        }
+        
+        await speakText(errorMessage);
+        return false;
     }
 }
 
@@ -436,6 +494,13 @@ async function startRecording() {
         return;
     }
     
+    // Verificar permissão antes de tentar gravar (mas não pedir novamente se já foi negada)
+    if (!microphonePermissionGranted && microphonePermissionChecked) {
+        console.error('Permissão do microfone não concedida. Não é possível gravar.');
+        await speakText('Permissão do microfone necessária. Por favor, recarregue a página e permita o acesso.');
+        return;
+    }
+    
     // Garantir que qualquer recognition anterior foi completamente limpo
     if (recognition) {
         try {
@@ -460,14 +525,34 @@ async function startRecording() {
     try {
         updateStatus('🔴', 'recording');
 
-        currentStream = await navigator.mediaDevices.getUserMedia({ 
-            audio: {
-                echoCancellation: true,
-                noiseSuppression: true,
-                sampleRate: 44100,
-                autoGainControl: true
-            } 
-        });
+        // Verificar se o stream atual ainda está ativo
+        let streamActive = false;
+        if (currentStream) {
+            streamActive = currentStream.getTracks().some(track => track.readyState === 'live');
+        }
+        
+        // Se não temos stream ativo, obter um novo
+        if (!streamActive) {
+            // Limpar stream antigo se existir
+            if (currentStream) {
+                currentStream.getTracks().forEach(track => track.stop());
+                currentStream = null;
+            }
+            
+            currentStream = await navigator.mediaDevices.getUserMedia({ 
+                audio: {
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                    sampleRate: 44100,
+                    autoGainControl: true
+                } 
+            });
+            // Marcar permissão como concedida se conseguirmos o stream
+            microphonePermissionGranted = true;
+            console.log('✅ Stream de microfone obtido com sucesso');
+        } else {
+            console.log('✅ Reutilizando stream de microfone existente');
+        }
         
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (!SpeechRecognition) {
@@ -613,7 +698,17 @@ async function startRecording() {
         
     } catch (error) {
         console.error('Erro ao iniciar gravação:', error);
-        await playAudioFast('repeat');
+        
+        // Se for erro de permissão, marcar como negada
+        if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
+            microphonePermissionGranted = false;
+            await speakText('Permissão do microfone negada. Por favor, permita o acesso nas configurações do navegador e recarregue a página.');
+        } else if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError') {
+            await speakText('Nenhum microfone encontrado. Verifique se há um microfone conectado.');
+        } else {
+            await playAudioFast('repeat');
+        }
+        
         resetRecordingState();
     }
 }
@@ -1671,8 +1766,9 @@ function normalizeWeekdaysPt(list) {
 }
 
 // Inicializar após o DOM carregar
-document.addEventListener('DOMContentLoaded', () => {
-    setupEventListeners();
-    checkMicrophonePermission();
-    initializeApp();
+document.addEventListener('DOMContentLoaded', async () => {
+    setupEventListeners();
+    // Verificar permissão apenas uma vez na inicialização
+    await checkMicrophonePermission();
+    initializeApp();
 });
